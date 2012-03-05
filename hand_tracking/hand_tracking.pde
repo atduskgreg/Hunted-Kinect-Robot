@@ -10,7 +10,9 @@ PVector screenPosition;
 PVector hand1Position;
 PVector hand2Position;
 
-int clapThreshold = 150;
+int clapThreshold = 80;
+
+boolean clicked = false;
 
 int hand1;
 int hand2;
@@ -56,7 +58,8 @@ boolean checkClap(){
   if(hand1Tracked && hand2Tracked){
     d = hand1Position.dist(hand2Position);
   }
-  
+  text(d, 10,10);  
+
   if(d < clapThreshold){
     clapping = true;
   } else {
@@ -84,15 +87,24 @@ void draw() {
   fill(0, 255, 0);
   ellipse(hand2Position.x, hand2Position.y, 10, 10);
 
-  if(hand1Tracked && hand2Tracked){
-    float d = hand1Position.dist(hand2Position);
-    text(d, 10,10);  
-  }
-
   screenPosition.x = map(hand1Position.x, 0, 640, 0, screenWidth);
   screenPosition.y = map(hand1Position.y, 0, 480, 0, screenHeight);
 
-  robot.mouseMove((int)screenPosition.x, (int)screenPosition.y);
+  if(hand1Tracked){
+    robot.mouseMove((int)screenPosition.x, (int)screenPosition.y);
+  }
+  
+  if(clicked){
+    fill(255,0,0);
+    rect(width - 130, 0, 130, 60);
+    fill(255);
+    stroke(255);
+    pushMatrix();
+    scale(3);
+    text("CLICK!", width/3 - 40, 10);
+    popMatrix();
+    clicked = false;
+  }
   
   if(checkClap()){
     fill(255);
@@ -112,20 +124,32 @@ void draw() {
 // -----------------------------------------------------------------
 // hand events <5>
 void onCreateHands(int handId, PVector position, float time) {
+  
+  PVector positionInProjective = new PVector();
+  kinect.convertRealWorldToProjective(position, positionInProjective);
+
   if (!hand1Tracked) {
     hand1 = handId;
     hand1Tracked = true;
-    kinect.convertRealWorldToProjective(position, hand1Position);
+    hand1Position = positionInProjective;
+    println("start hand 1: " + handId );
   }
+  
+ 
 
-  else if (!hand2Tracked) {
+  else if (!hand2Tracked && (hand1Position.dist(positionInProjective) > 0)) {
+    println("start hand 2: " + handId );
     hand2 = handId;
     hand2Tracked = true;
-    kinect.convertRealWorldToProjective(position, hand2Position);
+    hand2Position = positionInProjective;
   }
+  
+    println("ct*2:" + clapThreshold*2 + "h1: "+ hand1Tracked + " h2: " + hand2Tracked + " dist: " + hand1Position.dist(positionInProjective));
+
 }
 
 void onUpdateHands(int handId, PVector position, float time) {
+  println("updating: " + handId);
   if (handId == hand1) {
     kinect.convertRealWorldToProjective(position, hand1Position);
   }
@@ -139,11 +163,14 @@ void onDestroyHands(int handId, float time) {
   if(handId == hand1){
     hand1Tracked = false;
     hand1 = 0;
+    kinect.addGesture("RaiseHand");
+
   } else if(handId == hand2) {
     hand2 = 0;
     hand2Tracked = false;
+    kinect.addGesture("RaiseHand");
+
   }
-  kinect.addGesture("RaiseHand");
 }
 
 // -----------------------------------------------------------------
@@ -154,15 +181,18 @@ PVector endPosition) {
 
   // println(strGesture + " " + strGesture.equals("Click"));
 
+
   if (strGesture.equals("Click")) {
-    println(strGesture);
+    clicked = true;
     robot.mousePress(InputEvent.BUTTON1_MASK);
     robot.mouseRelease(InputEvent.BUTTON1_MASK);
   } 
   else {
-    kinect.startTrackingHands(endPosition);
     if (hand1Tracked && hand2Tracked) {
-      kinect.removeGesture("RaiseHand");
+       kinect.removeGesture("RaiseHand");
+    } else {
+        kinect.startTrackingHands(endPosition);
+
     }
   }
 }
